@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Uma unica DLL (netstandard2.1) roda nas duas builds do jogo (IL2CPP e Mono):
+    o mod so fala com a S1API e com tipos da Unity, nunca com classes do jogo.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>LucroDoDia</AssemblyName>
+    <RootNamespace>LucroDoDia</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Version>1.0.0</Version>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <!-- MelonLoader so publica lib net35 compativel com netstandard. -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Tudo isso ja existe no jogo instalado: so compilamos contra. -->
+    <PackageReference Include="LavaGang.MelonLoader" Version="0.7.0" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="S1API.Forked" Version="3.1.4" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="Unity3D.UnityEngine.UI" Version="2020.3.21" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+</Project>
