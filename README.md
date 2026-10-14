@@ -6,7 +6,7 @@ publicados no Thunderstore.
 | Mod | O que faz |
 | --- | --- |
 | [LucroDoDia](LucroDoDia/) | App "Lucro" no celular do jogo: entradas, investimento e lucro do dia + historico de 7 dias |
-| [SmartRestockFix](SmartRestockFix/) | Complemento do SmartRestock: repoe armarios configurados mesmo sem abri-los na sessao |
+| [SmartRestockFix](SmartRestockFix/) | Complemento do SmartRestock: repoe armarios sem abri-los e lembra o produto de cada slot entre sessoes |
 | [GrowFaster](GrowFaster/) | Multiplicador configuravel no tempo de crescimento das plantas |
 
 ## Pre-requisitos (no seu PC)
@@ -26,6 +26,7 @@ Unity vem do NuGet so como referencia (o jogo ja tem tudo isso instalado).
 ./pack-thunderstore.sh              # todos os mods -> dist/*.zip
 ./pack-thunderstore.sh LucroDoDia   # so um mod
 dotnet test LucroDoDia.Tests        # testes da logica de lucro
+dotnet test SmartRestockFix.Tests   # testes da memoria de produtos
 ```
 Os pacotes de cada mod sao definidos em `<Mod>/thunderstore/packages.tsv`.
 No Windows sem bash: `dotnet build GrowFaster -c Release` e copie a DLL de

@@ -1,9 +1,9 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
+using System.IO;
 using HarmonyLib;
 using MelonLoader;
+using MelonLoader.Utils;
 
 [assembly: MelonInfo(typeof(SmartRestockFix.Core), SmartRestockFix.Core.ModName, SmartRestockFix.Core.ModVersion, "Fun-on-rio")]
 [assembly: MelonGame("TVGS", "Schedule I")]
@@ -11,138 +11,196 @@ using MelonLoader;
 namespace SmartRestockFix
 {
     /// <summary>
-    /// Corrige o SmartRestock (1.3.x) nao repor armarios que nao foram abertos na sessao.
+    /// Complemento do SmartRestock (uplusion23, 1.3.x):
     ///
-    /// O SmartRestock salva os slots ligados em UserData/SmartRestock/slot-states-N.json,
-    /// mas na hora de repor so consulta uma lista em memoria (EnabledSlots) que e
-    /// preenchida quando o botao do slot aparece na tela. Este mod roda antes do
-    /// SmartRestock em ItemSlot.ChangeQuantity (o mesmo gatilho que ele usa): se o
-    /// slot ainda nao esta na lista, calcula o mesmo ID que o SmartRestock usa,
-    /// le o estado salvo e registra o slot - como se o armario tivesse sido aberto.
+    /// 1. Armarios nao abertos na sessao: o SmartRestock so conhece um slot depois que o
+    ///    botao dele aparece na tela. Rodamos antes dele em ItemSlot.ChangeQuantity e
+    ///    registramos o slot a partir do estado salvo (slot-states-N.json).
+    /// 2. Memoria de produto: anotamos o item de cada slot ligado (slot-items-N.json).
+    ///    Depois de carregar o save, slots ligados que ficaram vazios sao repostos com
+    ///    esse item pelo proprio SmartRestock (preco, filtros, notificacao e dinheiro dele).
     /// </summary>
     public class Core : MelonMod
     {
         public const string ModName = "SmartRestockFix";
-        public const string ModVersion = "1.0.0";
+        public const string ModVersion = "1.1.0";
 
-        private const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        private const float RestoreDelaySeconds = 5f; // espera o mundo terminar de montar apos o load
+        private const float FlushIntervalSeconds = 2f;
 
         private static MelonLogger.Instance _log;
-        private static bool _patched;
+        private static SlotMemory _memory;
+        private static readonly List<object> KnownSlots = new List<object>(); // slots criados nesta cena
         private static bool _warnedFailure;
-        private static readonly HashSet<string> Announced = new HashSet<string>();
 
-        // Membros internos do SmartRestock, achados por reflection.
-        private static MethodInfo _getRuntimeKey;    // RestockManager.GetSlotRuntimeKey(ItemSlot) -> nint
-        private static MethodInfo _buildContainerId; // SlotIdentity.TryBuildContainerId(ItemSlot) -> string
-        private static MethodInfo _getSlotIndex;     // SlotIdentity.TryGetSlotIndex(ItemSlot) -> int?
-        private static MethodInfo _storeGet;         // SmartRestockStateStore.Get(SlotKey) -> bool
-        private static Type _slotKeyType;            // record struct SlotKey(string, int)
-        private static IDictionary _enabledSlots;    // ConcurrentDictionary<nint, bool>
-        private static IDictionary _runtimeSlotKeys; // ConcurrentDictionary<nint, SlotKey>
-        private static IDictionary _runtimeSlots;    // ConcurrentDictionary<nint, ItemSlot>
+        private static MelonPreferences_Entry<bool> _restoreEmpty;
+        private bool _enabled;
+        private bool _restoreDone;
+        private float _readySince = -1f;
+        private float _nextFlush;
+
+        private static float Now => Environment.TickCount64 / 1000f;
 
         public override void OnInitializeMelon()
         {
             _log = LoggerInstance;
+            var category = MelonPreferences.CreateCategory(ModName);
+            _restoreEmpty = category.CreateEntry("ReporSlotsVaziosAoCarregar", true,
+                description: "Ao carregar o save, repoe slots com auto-restock ligado que ficaram vazios, usando o ultimo produto conhecido.");
+            _memory = new SlotMemory(Path.Combine(MelonEnvironment.UserDataDirectory, ModName));
             TryPatch();
         }
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
-            // Caso o SmartRestock tenha carregado depois deste mod.
-            if (!_patched) TryPatch();
-            if (sceneName != "Main") Announced.Clear();
+            if (!_enabled && !SmartRestockBridge.Found) TryPatch(); // SmartRestock carregou depois?
+            Flush();
+            if (sceneName != "Main") KnownSlots.Clear(); // voltou ao menu: slots do save anterior
+            _restoreDone = false;
+            _readySince = -1f;
         }
+
+        public override void OnApplicationQuit() => Flush();
 
         private void TryPatch()
         {
-            var manager = AccessTools.TypeByName("SmartRestock.Logic.RestockManager");
-            var identity = AccessTools.TypeByName("SmartRestock.Utils.SlotIdentity");
-            var store = AccessTools.TypeByName("SmartRestock.State.SmartRestockStateStore");
-            _slotKeyType = AccessTools.TypeByName("SmartRestock.State.SlotKey");
-            if (manager == null || identity == null || store == null || _slotKeyType == null)
+            SmartRestockBridge.Resolve();
+            if (!SmartRestockBridge.Found)
             {
                 LoggerInstance.Warning("SmartRestock nao encontrado (instalado?). Nada a corrigir por enquanto.");
                 return;
             }
-
-            var changeQuantity = FindChangeQuantity();
-            _getRuntimeKey = manager.GetMethod("GetSlotRuntimeKey", Any);
-            _buildContainerId = identity.GetMethod("TryBuildContainerId", Any);
-            _getSlotIndex = identity.GetMethod("TryGetSlotIndex", Any);
-            _storeGet = store.GetMethod("Get", Any);
-            _enabledSlots = manager.GetField("EnabledSlots", Any)?.GetValue(null) as IDictionary;
-            _runtimeSlotKeys = manager.GetField("RuntimeSlotKeys", Any)?.GetValue(null) as IDictionary;
-            _runtimeSlots = manager.GetField("RuntimeSlots", Any)?.GetValue(null) as IDictionary;
-
-            if (changeQuantity == null || _getRuntimeKey == null || _buildContainerId == null || _getSlotIndex == null
-                || _storeGet == null || _enabledSlots == null || _runtimeSlotKeys == null || _runtimeSlots == null)
+            if (!SmartRestockBridge.Compatible || !GameBridge.Resolve())
             {
-                LoggerInstance.Warning("Esta versao do SmartRestock mudou por dentro; correcao desativada para nao causar problemas.");
-                _patched = true; // nao tenta de novo a cada cena
+                LoggerInstance.Warning("Esta versao do SmartRestock ou do jogo mudou por dentro; complemento desativado para nao causar problemas.");
+                return;
+            }
+
+            var changeQuantity = AccessTools.Method(GameBridge.ItemSlotType, "ChangeQuantity");
+            var setSlotOwner = AccessTools.Method(GameBridge.ItemSlotType, "SetSlotOwner");
+            if (changeQuantity == null || setSlotOwner == null)
+            {
+                LoggerInstance.Warning("Metodos do ItemSlot nao encontrados; complemento desativado.");
                 return;
             }
 
             // Priority.First: registra o slot antes do prefix do SmartRestock decidir se repoe.
-            var prefix = new HarmonyMethod(typeof(Core).GetMethod(nameof(ChangeQuantityPrefix), Any))
+            HarmonyInstance.Patch(changeQuantity, prefix: new HarmonyMethod(typeof(Core), nameof(ChangeQuantityPrefix))
             {
                 priority = HarmonyLib.Priority.First
-            };
-            HarmonyInstance.Patch(changeQuantity, prefix: prefix);
-            _patched = true;
-            LoggerInstance.Msg("Correcao aplicada: armarios configurados repoem mesmo sem abrir.");
+            });
+            HarmonyInstance.Patch(setSlotOwner, postfix: new HarmonyMethod(typeof(Core), nameof(SetSlotOwnerPostfix)));
+            _enabled = true;
+            LoggerInstance.Msg("Correcao aplicada: armarios repoem sem abrir e slots vazios sao lembrados entre sessoes.");
         }
 
-        private static MethodInfo FindChangeQuantity()
+        public override void OnUpdate()
         {
-            foreach (var name in new[] { "Il2CppScheduleOne.ItemFramework.ItemSlot", "ScheduleOne.ItemFramework.ItemSlot" })
+            if (!_enabled) return;
+
+            if (Now >= _nextFlush)
             {
-                var type = AccessTools.TypeByName(name);
-                if (type != null) return AccessTools.Method(type, "ChangeQuantity");
+                _nextFlush = Now + FlushIntervalSeconds;
+                Flush();
             }
-            return null;
+
+            if (_restoreDone) return;
+            bool ready;
+            try { ready = GameBridge.IsGameReady(); }
+            catch { ready = false; }
+            if (!ready)
+            {
+                _readySince = -1f;
+                return;
+            }
+            if (_readySince < 0) _readySince = Now;
+            if (Now - _readySince < RestoreDelaySeconds) return;
+
+            _restoreDone = true;
+            if (_restoreEmpty.Value) RestoreEmptySlots();
+        }
+
+        // ---------- patches ----------
+
+        private static void SetSlotOwnerPostfix(object __instance)
+        {
+            if (__instance != null) KnownSlots.Add(__instance);
         }
 
         private static void ChangeQuantityPrefix(object __instance, int change)
         {
-            // So interessa quando sai item do slot (e quando o SmartRestock pode repor).
-            if (change < 0 && __instance != null)
-                EnsureRegistered(__instance);
-        }
-
-        private static void EnsureRegistered(object slot)
-        {
+            if (__instance == null || change == 0) return;
             try
             {
-                var runtimeKey = _getRuntimeKey.Invoke(null, new[] { slot });
-                if (runtimeKey is IntPtr ptr && ptr == IntPtr.Zero) return;
-
-                // Ja conhecido pelo SmartRestock (aberto nesta sessao): respeita o que ele decidiu.
-                if (_enabledSlots.Contains(runtimeKey)) return;
-
-                var containerId = _buildContainerId.Invoke(null, new[] { slot }) as string;
-                if (string.IsNullOrEmpty(containerId)) return;
-                var index = _getSlotIndex.Invoke(null, new[] { slot }) as int?;
-                if (index is not int slotIndex || slotIndex < 0) return;
-
-                var key = Activator.CreateInstance(_slotKeyType, containerId, slotIndex);
-                var enabled = (bool)_storeGet.Invoke(null, new[] { key });
-
-                // Registra igual o SmartRestock faria ao abrir o armario.
-                _enabledSlots[runtimeKey] = enabled;
-                _runtimeSlotKeys[runtimeKey] = key;
-                _runtimeSlots[runtimeKey] = slot;
-
-                if (enabled && Announced.Add(key.ToString()))
-                    _log.Msg($"Slot restaurado sem abrir o armario: {key}");
+                var key = SmartRestockBridge.EnsureRegistered(__instance);
+                if (key == null) return;
+                SyncSaveSlot();
+                _memory.Remember(key, GameBridge.ItemId(__instance)); // antes da mudanca: ainda tem o item
             }
             catch (Exception e)
             {
-                if (_warnedFailure) return;
-                _warnedFailure = true;
-                _log.Warning($"Nao foi possivel verificar um slot ({(e.InnerException ?? e).Message}). O SmartRestock segue funcionando normalmente.");
+                WarnOnce(e);
             }
+        }
+
+        // ---------- reposicao apos carregar ----------
+
+        private static void RestoreEmptySlots()
+        {
+            int restocked = 0, unknown = 0, learned = 0;
+            try
+            {
+                SyncSaveSlot();
+                KnownSlots.RemoveAll(slot => !GameBridge.IsAlive(slot));
+                foreach (var slot in KnownSlots.ToArray())
+                {
+                    var key = SmartRestockBridge.EnsureRegistered(slot);
+                    if (key == null) continue; // sem auto-restock ligado
+
+                    if (GameBridge.Quantity(slot) > 0)
+                    {
+                        // Slot cheio: ja anota o produto para a proxima vez.
+                        if (_memory.Remember(key, GameBridge.ItemId(slot))) learned++;
+                        continue;
+                    }
+
+                    var itemId = _memory.Recall(key);
+                    var item = itemId != null ? GameBridge.CreateItem(itemId) : null;
+                    if (item == null)
+                    {
+                        unknown++;
+                        continue;
+                    }
+                    if (SmartRestockBridge.Restock(slot, item)) restocked++;
+                }
+            }
+            catch (Exception e)
+            {
+                WarnOnce(e);
+            }
+
+            _log.Msg($"Apos carregar ({KnownSlots.Count} slots vistos): {restocked} slot(s) vazio(s) reposto(s), {learned} produto(s) novo(s) memorizado(s)" +
+                     (unknown > 0 ? $", {unknown} sem produto conhecido (coloque 1 unidade neles uma vez)." : "."));
+        }
+
+        // ---------- utilitarios ----------
+
+        private static void SyncSaveSlot()
+        {
+            _memory.UseSaveSlot(SmartRestockBridge.CurrentSaveSlot());
+        }
+
+        private static void Flush()
+        {
+            try { _memory?.Flush(); }
+            catch (Exception e) { WarnOnce(e); }
+        }
+
+        private static void WarnOnce(Exception e)
+        {
+            if (_warnedFailure) return;
+            _warnedFailure = true;
+            _log.Warning($"Falha no complemento ({(e.InnerException ?? e).Message}). O SmartRestock segue funcionando normalmente.");
         }
     }
 }

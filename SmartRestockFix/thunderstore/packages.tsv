@@ -1,1 +1,1 @@
-SmartRestockFix	net6.0	Complemento do SmartRestock: armarios com auto-restock ligado repoem mesmo sem serem abertos na sessao. IL2CPP.
+SmartRestockFix	net6.0	Complemento do SmartRestock: repoe armarios sem abri-los e lembra o produto de cada slot entre sessoes. IL2CPP.
