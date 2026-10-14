@@ -1,33 +1,47 @@
-# LucroDoDia
+# LucroDoDia — Daily Profit phone app
 
-Adiciona o app **Lucro** ao celular do Schedule I para acompanhar o dinheiro do dia:
+Adds a **"Lucro"** app to your in-game phone that tracks your money for the day:
 
-- **Entradas**: tudo que entrou hoje (vendas, dealers, lavagem...).
-- **Investimento**: tudo que saiu hoje (sementes, ingredientes, equipamentos, aluguel...).
-- **Lucro**: entradas menos investimento, em verde ou vermelho.
-- **Por hora de jogo**: quanto o dia esta rendendo por hora.
-- **Meta do dia**: barra de progresso e notificacao no jogo quando voce bate a meta.
-- **Saldo**: em maos e no banco, separados.
-- **Grafico**: lucro de hoje e dos 6 dias anteriores (verde = lucro, vermelho = prejuizo).
+- **Income** — everything that came in today (sales, dealers, laundering...).
+- **Investment** — everything that went out today (seeds, ingredients, equipment, rent...).
+- **Profit** — income minus investment, in green or red.
+- **Per in-game hour** — how much the day is earning per hour actually played.
+- **Daily goal** — progress bar plus an in-game notification when you hit it.
+- **Balance** — cash and bank, shown separately.
+- **Chart** — profit for today and the previous 6 days (green = profit, red = loss).
 
-## Configuracao
-Em `UserData/MelonPreferences.cfg` (no r2modman: *Config editor* > MelonPreferences):
+History is stored inside your save file. One DLL works on both the default Steam
+build (IL2CPP) and the `alternate` branch (Mono). The app's text is in Portuguese (pt-BR).
+
+## Installation
+- **r2modman / Thunderstore Mod Manager:** click *Install*; MelonLoader and S1API are installed as dependencies.
+- **Manual:** install MelonLoader 0.7.0 (or 0.7.2+, avoid 0.7.1) and [S1API Forked](https://thunderstore.io/c/schedule-i/p/ifBars/S1API_Forked/), then copy `LucroDoDia.dll` into the game's `Mods/` folder.
+
+## Configuration
+`UserData/MelonPreferences.cfg` (in r2modman: *Config editor* → MelonPreferences):
 
 ```toml
 [LucroDoDia]
-MetaDiaria = 10000.0     # meta de lucro por dia em $; 0 desliga
-NotificarMeta = true     # notificacao no jogo ao bater a meta
+MetaDiaria = 10000.0     # daily profit goal in $; 0 disables it
+NotificarMeta = true     # in-game notification when the goal is reached
 ```
 
-Os dados ficam salvos dentro do proprio save do jogo.
+## How it's calculated
+The app samples your total balance (cash + bank) twice per second: up is income,
+down is investment. Depositing or withdrawing at the ATM doesn't change profit.
+Putting cash into a business to launder counts as investment, and the clean money
+that comes back counts as income, so the final profit is still correct.
 
-## Instalacao
-- **r2modman / Thunderstore Mod Manager:** clique em *Install*. MelonLoader e S1API vem juntos como dependencias.
-- **Manual:** instale MelonLoader 0.7.0 (ou 0.7.2+) e a [S1API Forked](https://thunderstore.io/c/schedule-i/p/ifBars/S1API_Forked/), depois copie `LucroDoDia.dll` para a pasta `Mods/` do jogo.
+---
 
-Funciona na versao padrao da Steam (IL2CPP) e na branch `alternate` (Mono) com a mesma DLL.
+## Português
 
-## Como a conta e feita
-O app compara o saldo total (em maos + banco) a cada meio segundo: subiu, e entrada; desceu, e investimento.
-Por isso, depositar ou sacar no caixa eletronico nao altera o lucro. Ja colocar dinheiro numa empresa para lavar
-conta como investimento, e o valor que volta limpo conta como entrada.
+Adiciona o app **Lucro** ao celular do jogo: entradas, investimento e lucro do dia,
+lucro por hora de jogo, meta diária com notificação, saldo em mãos e no banco, e
+gráfico dos últimos 7 dias. Os dados ficam salvos no próprio save. Funciona em IL2CPP
+e Mono com a mesma DLL.
+
+Instalação: pelo r2modman/Thunderstore Mod Manager (as dependências vêm juntas) ou
+copiando `LucroDoDia.dll` para `Mods/` com MelonLoader e S1API instalados.
+
+Código-fonte: https://github.com/Merlin0101/Schedule-I
