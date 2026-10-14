@@ -3,6 +3,7 @@
 | Mod | O que faz |
 | --- | --- |
 | [LucroDoDia](LucroDoDia/) | App "Lucro" no celular do jogo: entradas, investimento e lucro do dia + historico de 7 dias |
+| [SmartRestockFix](SmartRestockFix/) | Complemento do SmartRestock: repoe armarios configurados mesmo sem abri-los na sessao |
 | [GrowFaster](GrowFaster/) | Multiplicador configuravel no tempo de crescimento das plantas |
 
 ## Pre-requisitos (no seu PC)

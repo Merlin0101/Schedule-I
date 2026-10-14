@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Complemento para o SmartRestock (uplusion23), build IL2CPP do jogo.
+    Tudo e resolvido por reflection: nao precisa das DLLs do jogo nem do SmartRestock para compilar.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>SmartRestockFix</AssemblyName>
+    <RootNamespace>SmartRestockFix</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Version>1.0.0</Version>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LavaGang.MelonLoader" Version="0.7.0" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="HarmonyX" Version="2.10.2" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+</Project>

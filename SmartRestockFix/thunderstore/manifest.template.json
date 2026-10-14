@@ -1,0 +1,9 @@
+{
+  "name": "__NAME__",
+  "version_number": "__VERSION__",
+  "website_url": "https://github.com/merlin0101/fun-on-rio",
+  "description": "__DESCRIPTION__",
+  "dependencies": [
+    "LavaGang-MelonLoader-0.7.0"
+  ]
+}
