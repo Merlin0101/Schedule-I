@@ -31,7 +31,7 @@ No Windows sem bash: `dotnet build GrowFaster -c Release` e copie a DLL de
 ## Testar no jogo
 ### LucroDoDia
 1. Instale a S1API Forked (pelo r2modman ou manualmente).
-2. Copie `LucroDoDia.dll` e `LucroDoDia/thunderstore/LucroDoDia_icon.png` para `<pasta do jogo>/Mods/`.
+2. Copie `LucroDoDia.dll` para `<pasta do jogo>/Mods/` (ou importe o zip pelo r2modman).
 3. Carregue um save, abra o celular e toque no app **Lucro**. Venda ou compre algo e veja os numeros mudarem.
 
 ### GrowFaster

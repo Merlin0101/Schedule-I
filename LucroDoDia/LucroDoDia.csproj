@@ -10,11 +10,16 @@
     <RootNamespace>LucroDoDia</RootNamespace>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <!-- MelonLoader so publica lib net35 compativel com netstandard. -->
     <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Icone do app do celular, extraido para Mods/ em tempo de execucao. -->
+    <EmbeddedResource Include="thunderstore/icon.png" LogicalName="LucroDoDia.icon.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Tudo isso ja existe no jogo instalado: so compilamos contra. -->

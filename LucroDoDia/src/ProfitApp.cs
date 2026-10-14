@@ -26,7 +26,7 @@ namespace LucroDoDia
         protected override string AppName => "LucroDoDia";
         protected override string AppTitle => "Lucro do Dia";
         protected override string IconLabel => "Lucro";
-        protected override string IconFileName => "LucroDoDia_icon.png"; // fica em Mods/
+        protected override string IconFileName => Core.IconFileName; // gravado em Mods/ pelo Core
 
         public ProfitApp()
         {
