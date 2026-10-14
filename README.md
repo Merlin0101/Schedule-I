@@ -1,5 +1,8 @@
 # Mods de Schedule I (MelonLoader + Thunderstore)
 
+Mods para o [Schedule I](https://store.steampowered.com/app/3164500/Schedule_I/) feitos com MelonLoader,
+publicados no Thunderstore.
+
 | Mod | O que faz |
 | --- | --- |
 | [LucroDoDia](LucroDoDia/) | App "Lucro" no celular do jogo: entradas, investimento e lucro do dia + historico de 7 dias |
@@ -20,7 +23,6 @@ Unity vem do NuGet so como referencia (o jogo ja tem tudo isso instalado).
 
 ## Compilar e empacotar
 ```bash
-cd schedule1-mods
 ./pack-thunderstore.sh              # todos os mods -> dist/*.zip
 ./pack-thunderstore.sh LucroDoDia   # so um mod
 dotnet test LucroDoDia.Tests        # testes da logica de lucro
