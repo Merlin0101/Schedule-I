@@ -7,9 +7,15 @@ namespace LucroDoDia
     public class DayRecord
     {
         public int Day;
-        public double Income;      // tudo que entrou (vendas, dealers, lavagem...)
-        public double Investment;  // tudo que saiu (sementes, ingredientes, equipamentos, contas...)
+        public double Income;        // tudo que entrou (vendas, dealers, lavagem...)
+        public double Investment;    // tudo que saiu (sementes, ingredientes, equipamentos, contas...)
+        public double TrackedMinutes; // minutos de jogo acompanhados hoje (base do lucro/hora)
+        public bool GoalReached;     // ja avisou que bateu a meta hoje
         public double Profit => Income - Investment;
+
+        /// <summary>Lucro por hora de jogo, ou null se ainda ha pouco tempo acompanhado.</summary>
+        public double? ProfitPerHour =>
+            TrackedMinutes >= DailyLedger.MinMinutesForRate ? Profit / (TrackedMinutes / 60.0) : (double?)null;
     }
 
     /// <summary>
@@ -22,9 +28,12 @@ namespace LucroDoDia
     public class DailyLedger
     {
         public const int MaxHistoryDays = 7;
-        private const double Epsilon = 0.005; // ignora ruido de float
+        public const double MinMinutesForRate = 30;
+        private const double Epsilon = 0.005;     // ignora ruido de float
+        private const int MaxMinuteStep = 120;    // saltos maiores (carregar save, dormir) nao contam como tempo jogado
 
         private double? _lastBalance;
+        private int? _lastMinute;
 
         public DayRecord Today { get; private set; }
         public List<DayRecord> History { get; private set; } = new List<DayRecord>(); // mais recente primeiro
@@ -37,7 +46,8 @@ namespace LucroDoDia
         /// <summary>Ultimo saldo observado (ou null antes da primeira amostra).</summary>
         public double? Balance => _lastBalance;
 
-        public void Observe(double balance, int day)
+        /// <param name="minuteOfDay">Minutos desde 00:00 no relogio do jogo, ou -1 se desconhecido.</param>
+        public void Observe(double balance, int day, int minuteOfDay = -1)
         {
             if (day != Today.Day)
                 RollOver(day);
@@ -50,17 +60,40 @@ namespace LucroDoDia
             }
             // A primeira amostra so define a base: o saldo carregado do save nao e lucro.
             _lastBalance = balance;
+
+            if (minuteOfDay >= 0)
+            {
+                if (_lastMinute is int prev)
+                {
+                    var step = minuteOfDay - prev;
+                    if (step < 0) step += 24 * 60; // passou da meia-noite
+                    if (step <= MaxMinuteStep) Today.TrackedMinutes += step;
+                }
+                _lastMinute = minuteOfDay;
+            }
         }
 
-        /// <summary>Esquece a base de saldo (ex: ao sair para o menu), mantendo os totais.</summary>
-        public void ResetBaseline() => _lastBalance = null;
+        /// <summary>True uma unica vez por dia, quando o lucro alcanca a meta (meta &lt;= 0 desliga).</summary>
+        public bool CheckGoal(double goal)
+        {
+            if (goal <= 0 || Today.GoalReached || Today.Profit < goal) return false;
+            Today.GoalReached = true;
+            return true;
+        }
+
+        /// <summary>Esquece a base de saldo/tempo (ex: ao sair para o menu), mantendo os totais.</summary>
+        public void ResetBaseline()
+        {
+            _lastBalance = null;
+            _lastMinute = null;
+        }
 
         /// <summary>Restaura o estado salvo no save do jogo.</summary>
         public void Restore(DayRecord today, List<DayRecord> history)
         {
             Today = today ?? new DayRecord();
             History = history ?? new List<DayRecord>();
-            _lastBalance = null;
+            ResetBaseline();
         }
 
         public void Clear(int day = 0)
@@ -78,6 +111,46 @@ namespace LucroDoDia
                     History.RemoveRange(MaxHistoryDays, History.Count - MaxHistoryDays);
             }
             Today = new DayRecord { Day = newDay };
+            _lastMinute = null;
+        }
+    }
+
+    /// <summary>Contas do grafico de barras (lucro pode ser negativo).</summary>
+    public static class ChartMath
+    {
+        /// <summary>
+        /// Altura da linha do zero (0..1) e a escala total, de forma que o maior
+        /// lucro e o maior prejuizo caibam no grafico.
+        /// </summary>
+        public static (float baseline, double range) Scale(IList<double> values)
+        {
+            double maxPos = 0, maxNeg = 0;
+            foreach (var v in values)
+            {
+                if (v > maxPos) maxPos = v;
+                if (-v > maxNeg) maxNeg = -v;
+            }
+            var range = maxPos + maxNeg;
+            if (range <= 0) return (0.5f, 1); // sem dados: zero no meio
+            return ((float)(maxNeg / range), range);
+        }
+
+        /// <summary>Faixa vertical (0..1) ocupada por uma barra.</summary>
+        public static (float bottom, float top) Bar(double value, float baseline, double range)
+        {
+            var size = (float)(Math.Abs(value) / range);
+            return value >= 0 ? (baseline, baseline + size) : (baseline - size, baseline);
+        }
+
+        /// <summary>Formato curto para rotulos: $950, $12.3k, $4.2M.</summary>
+        public static string Compact(double value)
+        {
+            var sign = value < 0 ? "-" : "";
+            var abs = Math.Abs(value);
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            if (abs >= 1_000_000) return sign + "$" + (abs / 1_000_000).ToString("0.#", inv) + "M";
+            if (abs >= 1_000) return sign + "$" + (abs / 1_000).ToString("0.#", inv) + "k";
+            return sign + "$" + abs.ToString("0", inv);
         }
     }
 }

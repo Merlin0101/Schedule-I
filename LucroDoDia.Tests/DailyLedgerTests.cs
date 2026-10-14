@@ -93,3 +93,102 @@ public class DailyLedgerTests
         Assert.Equal(0, ledger.Today.Investment);
     }
 }
+
+public class LucroPorHoraEMetaTests
+{
+    [Fact]
+    public void ContaMinutosDeJogoEDivideOLucro()
+    {
+        var ledger = new DailyLedger();
+        ledger.Observe(0, 0, 8 * 60);
+        ledger.Observe(300, 0, 9 * 60);     // +$300 em 1h
+        ledger.Observe(600, 0, 10 * 60);    // +$300 em mais 1h
+
+        Assert.Equal(120, ledger.Today.TrackedMinutes);
+        Assert.Equal(300, ledger.Today.ProfitPerHour);
+    }
+
+    [Fact]
+    public void PoucoTempoAindaNaoTemTaxa()
+    {
+        var ledger = new DailyLedger();
+        ledger.Observe(0, 0, 600);
+        ledger.Observe(100, 0, 610);
+
+        Assert.Null(ledger.Today.ProfitPerHour);
+    }
+
+    [Fact]
+    public void PassarDaMeiaNoiteContaNormalESaltoGrandeNao()
+    {
+        var ledger = new DailyLedger();
+        ledger.Observe(0, 0, 23 * 60 + 50);
+        ledger.Observe(0, 0, 10);          // 20 min depois, ja depois da meia-noite
+        ledger.Observe(0, 0, 5 * 60);      // salto de quase 5h (ex: carregou o save) - ignora
+
+        Assert.Equal(20, ledger.Today.TrackedMinutes);
+    }
+
+    [Fact]
+    public void MetaAvisaUmaVezSo()
+    {
+        var ledger = new DailyLedger();
+        ledger.Observe(0, 0);
+        ledger.Observe(900, 0);
+        Assert.False(ledger.CheckGoal(1000));
+
+        ledger.Observe(1100, 0);
+        Assert.True(ledger.CheckGoal(1000));
+        Assert.False(ledger.CheckGoal(1000));
+
+        ledger.Observe(1100, 1);           // dia novo: pode avisar de novo
+        ledger.Observe(2200, 1);
+        Assert.True(ledger.CheckGoal(1000));
+    }
+
+    [Fact]
+    public void MetaZeroDesliga()
+    {
+        var ledger = new DailyLedger();
+        ledger.Observe(0, 0);
+        ledger.Observe(1_000_000, 0);
+        Assert.False(ledger.CheckGoal(0));
+    }
+}
+
+public class ChartMathTests
+{
+    [Fact]
+    public void SoLucroDeixaOZeroNoChao()
+    {
+        var (baseline, range) = ChartMath.Scale(new double[] { 100, 400, 200 });
+        Assert.Equal(0f, baseline);
+        Assert.Equal(400, range);
+        Assert.Equal((0f, 1f), ChartMath.Bar(400, baseline, range));
+    }
+
+    [Fact]
+    public void LucroEPrejuizoDividemOEspaco()
+    {
+        var (baseline, range) = ChartMath.Scale(new double[] { 300, -100 });
+        Assert.Equal(0.25f, baseline);
+        var (bottom, top) = ChartMath.Bar(-100, baseline, range);
+        Assert.Equal(0f, bottom, 3);
+        Assert.Equal(0.25f, top, 3);
+    }
+
+    [Fact]
+    public void SemDadosZeroNoMeio()
+    {
+        Assert.Equal(0.5f, ChartMath.Scale(new double[] { 0, 0 }).baseline);
+    }
+
+    [Theory]
+    [InlineData(950, "$950")]
+    [InlineData(12345, "$12.3k")]
+    [InlineData(-4_250_000, "-$4.3M")]
+    public void FormatoCurto(double value, string expected)
+    {
+        Assert.Equal(expected, ChartMath.Compact(value));
+    }
+}

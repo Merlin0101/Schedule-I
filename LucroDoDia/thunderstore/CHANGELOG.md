@@ -1,3 +1,10 @@
+## 1.1.0
+- Grafico de barras com o lucro dos ultimos 7 dias (verde = lucro, vermelho = prejuizo).
+- Lucro por hora de jogo.
+- Meta diaria configuravel (MetaDiaria) com barra de progresso e notificacao no jogo ao bater.
+- Saldo separado em "em maos" e "no banco".
+- Textos com acentos.
+
 ## 1.0.1
 - Corrige icone do app em branco quando instalado pelo r2modman/Thunderstore Mod Manager (o icone agora vai dentro da DLL).
 

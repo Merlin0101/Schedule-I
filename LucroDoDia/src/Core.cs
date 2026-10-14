@@ -13,12 +13,21 @@ namespace LucroDoDia
     public class Core : MelonMod
     {
         public const string ModName = "LucroDoDia";
-        public const string ModVersion = "1.0.1";
+        public const string ModVersion = "1.1.0";
 
         private const float PollIntervalSeconds = 0.5f;
 
         public static readonly DailyLedger Ledger = new DailyLedger();
         public static LedgerSave Save;
+
+        /// <summary>Ultimos saldos lidos do jogo.</summary>
+        public static double Cash, Bank;
+
+        private static MelonPreferences_Entry<float> _dailyGoal;
+        private static MelonPreferences_Entry<bool> _notifyGoal;
+
+        /// <summary>Meta de lucro do dia ($). 0 desliga.</summary>
+        public static double DailyGoal => Math.Max(0, _dailyGoal?.Value ?? 0);
 
         private bool _inGame;
         private float _nextPoll;
@@ -28,6 +37,13 @@ namespace LucroDoDia
         public override void OnInitializeMelon()
         {
             EnsureIconFile();
+
+            var category = MelonPreferences.CreateCategory(ModName);
+            _dailyGoal = category.CreateEntry("MetaDiaria", 10000f,
+                description: "Meta de lucro por dia em $. Mostra barra de progresso no app; 0 desliga.");
+            _notifyGoal = category.CreateEntry("NotificarMeta", true,
+                description: "Mostra uma notificacao no jogo quando o lucro do dia bate a meta.");
+
             LoggerInstance.Msg("Carregado. Abra o app \"Lucro\" no celular do jogo.");
         }
 
@@ -73,19 +89,23 @@ namespace LucroDoDia
             if (!_inGame || Time.unscaledTime < _nextPoll) return;
             _nextPoll = Time.unscaledTime + PollIntervalSeconds;
 
-            double balance;
-            int day;
+            int day, minuteOfDay;
             try
             {
-                balance = S1API.Money.Money.GetCashBalance() + S1API.Money.Money.GetOnlineBalance();
+                Cash = S1API.Money.Money.GetCashBalance();
+                Bank = S1API.Money.Money.GetOnlineBalance();
                 day = TimeManager.ElapsedDays;
+                var hhmm = TimeManager.CurrentTime; // ex: 1330 = 13:30
+                minuteOfDay = hhmm / 100 * 60 + hhmm % 100;
             }
             catch (Exception)
             {
                 return; // jogo ainda carregando (MoneyManager/TimeManager nao existem)
             }
 
-            Ledger.Observe(balance, day);
+            Ledger.Observe(Cash + Bank, day, minuteOfDay);
+            if (Ledger.CheckGoal(DailyGoal) && _notifyGoal.Value)
+                GameNotifier.Send("Meta do dia batida!", $"Lucro de hoje: {ChartMath.Compact(Ledger.Today.Profit)}");
             Save?.Capture(Ledger);
             ProfitApp.Instance?.Refresh();
         }
