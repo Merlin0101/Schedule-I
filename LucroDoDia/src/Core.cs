@@ -13,7 +13,7 @@ namespace LucroDoDia
     public class Core : MelonMod
     {
         public const string ModName = "LucroDoDia";
-        public const string ModVersion = "1.1.0";
+        public const string ModVersion = "1.2.0";
 
         private const float PollIntervalSeconds = 0.5f;
 
@@ -21,7 +21,8 @@ namespace LucroDoDia
         public static LedgerSave Save;
 
         /// <summary>Ultimos saldos lidos do jogo.</summary>
-        public static double Cash, Bank;
+        public static double Cash, Bank, DealerCash;
+        public static int RecruitedDealers;
 
         private static MelonPreferences_Entry<float> _dailyGoal;
         private static MelonPreferences_Entry<bool> _notifyGoal;
@@ -75,6 +76,8 @@ namespace LucroDoDia
         {
             _inGame = sceneName == "Main";
             Ledger.ResetBaseline();
+            DealerTracker.Clear();
+            RecruitedDealers = -1;
 
             if (!_inGame)
             {
@@ -103,7 +106,16 @@ namespace LucroDoDia
                 return; // jogo ainda carregando (MoneyManager/TimeManager nao existem)
             }
 
-            Ledger.Observe(Cash + Bank, day, minuteOfDay);
+            // Dealers: venda entra na hora; recrutar/carregar dealer muda a base sem ser lucro.
+            var (pool, recruited) = DealerTracker.Read(Time.unscaledTime);
+            if (recruited != RecruitedDealers)
+            {
+                RecruitedDealers = recruited;
+                Ledger.ResetBaseline();
+            }
+            DealerCash = pool;
+
+            Ledger.Observe(Cash + Bank, day, minuteOfDay, pool);
             if (Ledger.CheckGoal(DailyGoal) && _notifyGoal.Value)
                 GameNotifier.Send("Meta do dia batida!", $"Lucro de hoje: {ChartMath.Compact(Ledger.Today.Profit)}");
             Save?.Capture(Ledger);

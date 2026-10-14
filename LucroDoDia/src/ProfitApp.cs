@@ -29,7 +29,7 @@ namespace LucroDoDia
         private static readonly Color RedToday = new Color(1f, 0.58f, 0.58f);
         private static readonly Color Gold = new Color(1f, 0.84f, 0.31f);
 
-        private Text _day, _income, _investment, _profit, _perHour, _goal, _cash, _bank;
+        private Text _day, _income, _dealers, _investment, _profit, _perHour, _goal, _cash, _bank, _dealerCash;
         private RectTransform _goalFill;
         private GameObject _goalBar;
         private RectTransform _zeroLine;
@@ -73,6 +73,7 @@ namespace LucroDoDia
             _day = Line(left, "", 16);
             Spacer(left, 6);
             _income = Line(left, "", 21);
+            _dealers = Line(left, "", 15);
             _investment = Line(left, "", 21);
             _profit = Line(left, "", 26, FontStyle.Bold);
             _perHour = Line(left, "", 17);
@@ -82,6 +83,7 @@ namespace LucroDoDia
             Spacer(left, 8);
             _cash = Line(left, "", 16);
             _bank = Line(left, "", 16);
+            _dealerCash = Line(left, "", 16);
         }
 
         private void BuildGoalBar(GameObject parent)
@@ -140,6 +142,9 @@ namespace LucroDoDia
 
             _day.text = Colored(GrayHex, $"Dia {today.Day + 1} · atualiza sozinho");
             _income.text = $"Entradas:  {Colored(GreenHex, "+" + Money(today.Income))}";
+            _dealers.text = Core.RecruitedDealers > 0
+                ? Colored(GrayHex, $"   dos dealers: +{Money(today.DealerIncome)}")
+                : "";
             _investment.text = $"Investimento:  {Colored(RedHex, "-" + Money(today.Investment))}";
             _profit.text = $"Lucro:  {Signed(today.Profit)}";
             _perHour.text = today.ProfitPerHour is double rate
@@ -151,6 +156,9 @@ namespace LucroDoDia
             var known = ledger.Balance.HasValue;
             _cash.text = Colored(GrayHex, known ? $"Em mãos: {Money(Core.Cash)}" : "Saldo: aguardando o jogo...");
             _bank.text = Colored(GrayHex, known ? $"No banco: {Money(Core.Bank)}" : "");
+            _dealerCash.text = known && Core.RecruitedDealers > 0
+                ? Colored(GrayHex, $"Com os dealers ({Core.RecruitedDealers}): {Money(Core.DealerCash)} a coletar")
+                : "";
 
             RefreshChart(ledger);
         }

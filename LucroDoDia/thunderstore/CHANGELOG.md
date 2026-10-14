@@ -1,3 +1,7 @@
+## 1.2.0
+- Dealers: vendas dos dealers entram nas entradas na hora em que acontecem, com a linha "dos dealers" e o total "a coletar".
+- Coletar o dinheiro de um dealer nao conta duas vezes (e so uma transferencia).
+
 ## 1.1.0
 - Grafico de barras com o lucro dos ultimos 7 dias (verde = lucro, vermelho = prejuizo).
 - Lucro por hora de jogo.

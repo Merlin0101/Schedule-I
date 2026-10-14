@@ -3,6 +3,7 @@
 Adds a **"Lucro"** app to your in-game phone that tracks your money for the day:
 
 - **Income** — everything that came in today (sales, dealers, laundering...).
+- **Dealers, live** — your share of each dealer sale counts the moment it happens, plus how much cash is waiting to be collected. Collecting it is just a transfer, so it's never counted twice.
 - **Investment** — everything that went out today (seeds, ingredients, equipment, rent...).
 - **Profit** — income minus investment, in green or red.
 - **Per in-game hour** — how much the day is earning per hour actually played.
@@ -27,8 +28,8 @@ NotificarMeta = true     # in-game notification when the goal is reached
 ```
 
 ## How it's calculated
-The app samples your total balance (cash + bank) twice per second: up is income,
-down is investment. Depositing or withdrawing at the ATM doesn't change profit.
+The app samples your total money (cash + bank + uncollected dealer cash) twice per
+second: up is income, down is investment. Depositing or withdrawing at the ATM doesn't change profit.
 Putting cash into a business to launder counts as investment, and the clean money
 that comes back counts as income, so the final profit is still correct.
 
@@ -37,7 +38,7 @@ that comes back counts as income, so the final profit is still correct.
 ## Português
 
 Adiciona o app **Lucro** ao celular do jogo: entradas, investimento e lucro do dia,
-lucro por hora de jogo, meta diária com notificação, saldo em mãos e no banco, e
+vendas dos dealers ao vivo (e quanto há a coletar), lucro por hora de jogo, meta diária com notificação, saldo em mãos e no banco, e
 gráfico dos últimos 7 dias. Os dados ficam salvos no próprio save. Funciona em IL2CPP
 e Mono com a mesma DLL.
 

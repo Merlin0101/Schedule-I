@@ -9,6 +9,7 @@ namespace LucroDoDia
         public int Day;
         public double Income;        // tudo que entrou (vendas, dealers, lavagem...)
         public double Investment;    // tudo que saiu (sementes, ingredientes, equipamentos, contas...)
+        public double DealerIncome;  // parte das entradas que veio de vendas dos dealers (ao vivo)
         public double TrackedMinutes; // minutos de jogo acompanhados hoje (base do lucro/hora)
         public bool GoalReached;     // ja avisou que bateu a meta hoje
         public double Profit => Income - Investment;
@@ -21,9 +22,11 @@ namespace LucroDoDia
     /// <summary>
     /// Contabilidade do dia sem depender do jogo, para poder ser testada.
     ///
-    /// Recebe amostras do saldo total (dinheiro em maos + banco) e classifica cada
-    /// variacao: subiu = entrada, desceu = investimento. Como olha o TOTAL,
-    /// depositar ou sacar no caixa eletronico nao conta como lucro nem gasto.
+    /// Recebe amostras do patrimonio liquido (dinheiro em maos + banco + dinheiro a
+    /// coletar com os dealers) e classifica cada variacao: subiu = entrada, desceu =
+    /// investimento. Como olha o TOTAL, depositar/sacar no caixa eletronico ou coletar
+    /// o dinheiro de um dealer nao conta duas vezes: a venda do dealer entra na hora
+    /// em que acontece, e a coleta e so uma transferencia.
     /// </summary>
     public class DailyLedger
     {
@@ -33,6 +36,7 @@ namespace LucroDoDia
         private const int MaxMinuteStep = 120;    // saltos maiores (carregar save, dormir) nao contam como tempo jogado
 
         private double? _lastBalance;
+        private double? _lastDealerPool;
         private int? _lastMinute;
 
         public DayRecord Today { get; private set; }
@@ -43,14 +47,21 @@ namespace LucroDoDia
             Today = new DayRecord { Day = day };
         }
 
-        /// <summary>Ultimo saldo observado (ou null antes da primeira amostra).</summary>
+        /// <summary>Ultimo total observado, incluindo dealers (ou null antes da primeira amostra).</summary>
         public double? Balance => _lastBalance;
 
+        /// <param name="balance">Dinheiro do jogador (em maos + banco).</param>
         /// <param name="minuteOfDay">Minutos desde 00:00 no relogio do jogo, ou -1 se desconhecido.</param>
-        public void Observe(double balance, int day, int minuteOfDay = -1)
+        /// <param name="dealerPool">Dinheiro guardado pelos dealers, ainda nao coletado.</param>
+        public void Observe(double balance, int day, int minuteOfDay = -1, double dealerPool = 0)
         {
             if (day != Today.Day)
                 RollOver(day);
+
+            if (_lastDealerPool is double lastPool && dealerPool - lastPool > Epsilon)
+                Today.DealerIncome += dealerPool - lastPool;
+            _lastDealerPool = dealerPool;
+            balance += dealerPool;
 
             if (_lastBalance is double last)
             {
@@ -85,6 +96,7 @@ namespace LucroDoDia
         public void ResetBaseline()
         {
             _lastBalance = null;
+            _lastDealerPool = null;
             _lastMinute = null;
         }
 
