@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Um unico projeto gera as duas versoes do mod:
+      - net6.0  -> Schedule I padrao da Steam (IL2CPP)
+      - net472  -> branch "alternate" da Steam (Mono)
+    Os tipos do jogo sao encontrados por reflection em tempo de execucao,
+    entao NAO precisa referenciar as DLLs do jogo para compilar.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net472</TargetFrameworks>
+    <AssemblyName>GrowFaster</AssemblyName>
+    <RootNamespace>GrowFaster</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Version>1.0.0</Version>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- MelonLoader e Harmony ja vem instalados no jogo: so compilamos contra eles. -->
+    <PackageReference Include="LavaGang.MelonLoader" Version="0.7.0" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="HarmonyX" Version="2.10.2" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
