@@ -3,6 +3,19 @@ using System.Collections.Generic;
 
 namespace LucroDoDia
 {
+    /// <summary>Uma leitura de um dealer recrutado: ID do NPC e dinheiro guardado para o jogador.</summary>
+    public struct DealerSample
+    {
+        public string Id;
+        public double Cash;
+
+        public DealerSample(string id, double cash)
+        {
+            Id = id;
+            Cash = cash;
+        }
+    }
+
     /// <summary>Totais de um dia de jogo.</summary>
     public class DayRecord
     {
@@ -10,6 +23,7 @@ namespace LucroDoDia
         public double Income;        // tudo que entrou (vendas, dealers, lavagem...)
         public double Investment;    // tudo que saiu (sementes, ingredientes, equipamentos, contas...)
         public double DealerIncome;  // parte das entradas que veio de vendas dos dealers (ao vivo)
+        public Dictionary<string, double> DealerSales = new Dictionary<string, double>(); // por ID do dealer
         public double TrackedMinutes; // minutos de jogo acompanhados hoje (base do lucro/hora)
         public bool GoalReached;     // ja avisou que bateu a meta hoje
         public double Profit => Income - Investment;
@@ -36,7 +50,7 @@ namespace LucroDoDia
         private const int MaxMinuteStep = 120;    // saltos maiores (carregar save, dormir) nao contam como tempo jogado
 
         private double? _lastBalance;
-        private double? _lastDealerPool;
+        private readonly Dictionary<string, double> _lastDealerCash = new Dictionary<string, double>();
         private int? _lastMinute;
 
         public DayRecord Today { get; private set; }
@@ -52,16 +66,30 @@ namespace LucroDoDia
 
         /// <param name="balance">Dinheiro do jogador (em maos + banco).</param>
         /// <param name="minuteOfDay">Minutos desde 00:00 no relogio do jogo, ou -1 se desconhecido.</param>
-        /// <param name="dealerPool">Dinheiro guardado pelos dealers, ainda nao coletado.</param>
-        public void Observe(double balance, int day, int minuteOfDay = -1, double dealerPool = 0)
+        /// <param name="dealers">Dealers recrutados e o dinheiro que cada um guarda, ainda nao coletado.</param>
+        public void Observe(double balance, int day, int minuteOfDay = -1, IReadOnlyList<DealerSample> dealers = null)
         {
             if (day != Today.Day)
                 RollOver(day);
 
-            if (_lastDealerPool is double lastPool && dealerPool - lastPool > Epsilon)
-                Today.DealerIncome += dealerPool - lastPool;
-            _lastDealerPool = dealerPool;
-            balance += dealerPool;
+            if (dealers != null)
+            {
+                foreach (var dealer in dealers)
+                {
+                    if (string.IsNullOrEmpty(dealer.Id)) continue;
+                    // Dinheiro do dealer subiu = ele vendeu. Desceu = voce coletou (transferencia).
+                    if (_lastDealerCash.TryGetValue(dealer.Id, out var lastCash) && dealer.Cash - lastCash > Epsilon)
+                    {
+                        var sale = dealer.Cash - lastCash;
+                        Today.DealerIncome += sale;
+                        Today.DealerSales ??= new Dictionary<string, double>();
+                        Today.DealerSales.TryGetValue(dealer.Id, out var sold);
+                        Today.DealerSales[dealer.Id] = sold + sale;
+                    }
+                    _lastDealerCash[dealer.Id] = dealer.Cash;
+                    balance += dealer.Cash;
+                }
+            }
 
             if (_lastBalance is double last)
             {
@@ -96,7 +124,7 @@ namespace LucroDoDia
         public void ResetBaseline()
         {
             _lastBalance = null;
-            _lastDealerPool = null;
+            _lastDealerCash.Clear();
             _lastMinute = null;
         }
 
@@ -153,6 +181,10 @@ namespace LucroDoDia
             var size = (float)(Math.Abs(value) / range);
             return value >= 0 ? (baseline, baseline + size) : (baseline - size, baseline);
         }
+
+        /// <summary>Vendas de hoje de um dealer (0 se nao vendeu).</summary>
+        public static double SoldToday(DayRecord day, string dealerId) =>
+            day?.DealerSales != null && dealerId != null && day.DealerSales.TryGetValue(dealerId, out var v) ? v : 0;
 
         /// <summary>Formato curto para rotulos: $950, $12.3k, $4.2M.</summary>
         public static string Compact(double value)

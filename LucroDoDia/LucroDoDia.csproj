@@ -10,7 +10,7 @@
     <RootNamespace>LucroDoDia</RootNamespace>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <!-- MelonLoader so publica lib net35 compativel com netstandard. -->
     <NoWarn>$(NoWarn);NU1701</NoWarn>

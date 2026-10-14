@@ -195,12 +195,41 @@ public class ChartMathTests
 
 public class DealerTests
 {
+    private static DealerSample[] D(double cash) => new[] { new DealerSample("benji", cash) };
+
+    [Fact]
+    public void RankingSeparaVendasPorDealer()
+    {
+        var ledger = new DailyLedger();
+        ledger.Observe(0, 0, -1, new[] { new DealerSample("benji", 0), new DealerSample("molly", 100) });
+        ledger.Observe(0, 0, -1, new[] { new DealerSample("benji", 300), new DealerSample("molly", 150) });
+        ledger.Observe(300, 0, -1, new[] { new DealerSample("benji", 0), new DealerSample("molly", 400) }); // coletou o benji: $300 no bolso
+
+        Assert.Equal(300, ChartMath.SoldToday(ledger.Today, "benji"));
+        Assert.Equal(300, ChartMath.SoldToday(ledger.Today, "molly"));
+        Assert.Equal(600, ledger.Today.DealerIncome);
+        Assert.Equal(600, ledger.Today.Income);
+        Assert.Equal(0, ledger.Today.Investment);
+    }
+
+    [Fact]
+    public void DealerNovoNaListaSoDefineABaseDele()
+    {
+        var ledger = new DailyLedger();
+        ledger.Observe(0, 0, -1, new[] { new DealerSample("benji", 0) });
+        ledger.ResetBaseline(); // Core reseta quando a lista de dealers muda
+        ledger.Observe(0, 0, -1, new[] { new DealerSample("benji", 0), new DealerSample("molly", 900) });
+
+        Assert.Equal(0, ChartMath.SoldToday(ledger.Today, "molly"));
+        Assert.Equal(0, ledger.Today.Income);
+    }
+
     [Fact]
     public void VendaDoDealerEntraNaHora()
     {
         var ledger = new DailyLedger();
-        ledger.Observe(1000, 0, -1, dealerPool: 0);
-        ledger.Observe(1000, 0, -1, dealerPool: 400); // dealer vendeu, voce ainda nao coletou
+        ledger.Observe(1000, 0, -1, dealers: D(0));
+        ledger.Observe(1000, 0, -1, dealers: D(400)); // dealer vendeu, voce ainda nao coletou
 
         Assert.Equal(400, ledger.Today.Income);
         Assert.Equal(400, ledger.Today.DealerIncome);
@@ -210,9 +239,9 @@ public class DealerTests
     public void ColetarODinheiroNaoContaDuasVezes()
     {
         var ledger = new DailyLedger();
-        ledger.Observe(1000, 0, -1, dealerPool: 0);
-        ledger.Observe(1000, 0, -1, dealerPool: 400);
-        ledger.Observe(1400, 0, -1, dealerPool: 0);   // coletou: sai do dealer, entra em maos
+        ledger.Observe(1000, 0, -1, dealers: D(0));
+        ledger.Observe(1000, 0, -1, dealers: D(400));
+        ledger.Observe(1400, 0, -1, dealers: D(0));   // coletou: sai do dealer, entra em maos
 
         Assert.Equal(400, ledger.Today.Income);
         Assert.Equal(0, ledger.Today.Investment);
@@ -223,9 +252,9 @@ public class DealerTests
     public void ResetDeBaseIgnoraDealerRecemCarregado()
     {
         var ledger = new DailyLedger();
-        ledger.Observe(1000, 0, -1, dealerPool: 0);
+        ledger.Observe(1000, 0, -1, dealers: D(0));
         ledger.ResetBaseline();                        // dealers terminaram de carregar
-        ledger.Observe(1000, 0, -1, dealerPool: 5000);
+        ledger.Observe(1000, 0, -1, dealers: D(5000));
 
         Assert.Equal(0, ledger.Today.Income);
         Assert.Equal(0, ledger.Today.DealerIncome);
@@ -235,9 +264,9 @@ public class DealerTests
     public void VendasDoDealerViramDiaComOResto()
     {
         var ledger = new DailyLedger();
-        ledger.Observe(0, 0, -1, dealerPool: 0);
-        ledger.Observe(0, 0, -1, dealerPool: 250);
-        ledger.Observe(0, 1, -1, dealerPool: 250);
+        ledger.Observe(0, 0, -1, dealers: D(0));
+        ledger.Observe(0, 0, -1, dealers: D(250));
+        ledger.Observe(0, 1, -1, dealers: D(250));
 
         Assert.Equal(250, Assert.Single(ledger.History).DealerIncome);
         Assert.Equal(0, ledger.Today.DealerIncome);

@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using S1API.Utils;
 using S1API.PhoneApp;
 using S1API.UI;
 using UnityEngine;
@@ -16,6 +18,7 @@ namespace LucroDoDia
         public static ProfitApp Instance { get; private set; }
 
         private const int ChartSlots = 7; // 6 dias anteriores + hoje
+        private const int RankingRows = 8;
 
         private const string GreenHex = "#7CE07C";
         private const string RedHex = "#FF7A7A";
@@ -28,6 +31,9 @@ namespace LucroDoDia
         private static readonly Color Red = new Color(0.95f, 0.42f, 0.42f);
         private static readonly Color RedToday = new Color(1f, 0.58f, 0.58f);
         private static readonly Color Gold = new Color(1f, 0.84f, 0.31f);
+        private static readonly Color TabOn = new Color(0.30f, 0.62f, 0.36f);
+        private static readonly Color TabOff = new Color(1, 1, 1, 0.08f);
+        private const string GoldHex = "#FFD54F";
 
         private Text _day, _income, _dealers, _investment, _profit, _perHour, _goal, _cash, _bank, _dealerCash;
         private RectTransform _goalFill;
@@ -37,6 +43,12 @@ namespace LucroDoDia
         private readonly List<Image> _barImages = new List<Image>();
         private readonly List<Text> _barValues = new List<Text>();
         private readonly List<Text> _barDays = new List<Text>();
+
+        private GameObject _chartGroup, _rankingGroup;
+        private Image _chartTab, _rankingTab;
+        private bool _showRanking;
+        private Text _rankingHeader;
+        private readonly List<Text> _rankingLines = new List<Text>();
 
         protected override string AppName => "LucroDoDia";
         protected override string AppTitle => "Lucro do Dia";
@@ -53,7 +65,7 @@ namespace LucroDoDia
             var root = UIFactory.Panel("LucroRoot", container.transform, Background, fullAnchor: true);
             BuildStats(root);
             BuildChart(root);
-            Refresh();
+            ShowRanking(false); // tambem faz o primeiro Refresh, com tudo ja criado
         }
 
         // ---------- coluna da esquerda ----------
@@ -98,12 +110,22 @@ namespace LucroDoDia
 
         private void BuildChart(GameObject root)
         {
-            var right = UIFactory.Panel("Chart", root.transform, Clear);
-            Stretch(right, 0.49f, 0f, 1f, 1f);
+            var column = UIFactory.Panel("Right", root.transform, Clear);
+            Stretch(column, 0.49f, 0f, 1f, 1f);
 
-            var title = UIFactory.Text("ChartTitle", "Últimos 7 dias", right.transform, 19, TextAnchor.MiddleLeft, FontStyle.Bold);
-            Stretch(title.gameObject, 0.02f, 0.88f, 0.96f, 0.97f);
+            // Grupos primeiro e sem bloquear clique; abas por ultimo, para ficarem por cima.
+            _chartGroup = UIFactory.Panel("ChartGroup", column.transform, Clear);
+            Stretch(_chartGroup, 0f, 0f, 1f, 1f);
+            _chartGroup.GetComponent<Image>().raycastTarget = false;
+            _rankingGroup = UIFactory.Panel("RankingGroup", column.transform, Clear);
+            Stretch(_rankingGroup, 0f, 0f, 1f, 1f);
+            _rankingGroup.GetComponent<Image>().raycastTarget = false;
+            BuildRanking(_rankingGroup);
 
+            _chartTab = Tab(column, "Últimos 7 dias", 0.02f, 0.48f, () => ShowRanking(false));
+            _rankingTab = Tab(column, "Dealers", 0.50f, 0.96f, () => ShowRanking(true));
+
+            var right = _chartGroup;
             var area = UIFactory.Panel("ChartArea", right.transform, ChartBg);
             Stretch(area, 0.02f, 0.14f, 0.96f, 0.86f);
 
@@ -129,6 +151,41 @@ namespace LucroDoDia
                 Stretch(day.gameObject, ax0 - 0.02f, 0.04f, ax1 + 0.02f, 0.13f);
                 _barDays.Add(day);
             }
+        }
+
+        private void BuildRanking(GameObject group)
+        {
+            var list = UIFactory.Panel("RankingList", group.transform, ChartBg);
+            Stretch(list, 0.02f, 0.04f, 0.96f, 0.86f);
+            UIFactory.VerticalLayoutOnGO(list, 2, new RectOffset(12, 10, 8, 8));
+            var layout = list.GetComponent<VerticalLayoutGroup>();
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+
+            _rankingHeader = Line(list, "", 13);
+            for (var i = 0; i < RankingRows; i++)
+                _rankingLines.Add(Line(list, "", 15));
+        }
+
+        private Image Tab(GameObject parent, string label, float x0, float x1, System.Action onClick)
+        {
+            var (go, button, text) = UIFactory.ButtonWithLabel("Tab" + label, label, parent.transform, TabOff, 10, 10);
+            Stretch(go, x0, 0.88f, x1, 0.98f);
+            text.fontSize = 15;
+            EventHelper.AddListener(onClick, button.onClick);
+            return go.GetComponent<Image>();
+        }
+
+        private void ShowRanking(bool show)
+        {
+            _showRanking = show;
+            _chartGroup.SetActive(!show);
+            _rankingGroup.SetActive(show);
+            _chartTab.color = show ? TabOff : TabOn;
+            _rankingTab.color = show ? TabOn : TabOff;
+            Refresh();
         }
 
         // ---------- atualizacao ----------
@@ -160,8 +217,44 @@ namespace LucroDoDia
                 ? Colored(GrayHex, $"Com os dealers ({Core.RecruitedDealers}): {Money(Core.DealerCash)} a coletar")
                 : "";
 
-            RefreshChart(ledger);
+            if (_showRanking) RefreshRanking(today);
+            else RefreshChart(ledger);
         }
+
+        private void RefreshRanking(DayRecord today)
+        {
+            var dealers = DealerTracker.Current
+                .OrderByDescending(d => ChartMath.SoldToday(today, d.Id))
+                .ThenByDescending(d => d.Cash)
+                .ToList();
+
+            _rankingHeader.text = dealers.Count == 0
+                ? Colored(GrayHex, "Nenhum dealer recrutado ainda.")
+                : Colored(GrayHex, "Vendeu hoje · a coletar");
+
+            for (var i = 0; i < _rankingLines.Count; i++)
+            {
+                if (i >= dealers.Count)
+                {
+                    _rankingLines[i].text = "";
+                    continue;
+                }
+                if (i == _rankingLines.Count - 1 && dealers.Count > _rankingLines.Count)
+                {
+                    _rankingLines[i].text = Colored(GrayHex, $"+{dealers.Count - i} outros");
+                    continue;
+                }
+
+                var d = dealers[i];
+                var sold = ChartMath.SoldToday(today, d.Id);
+                var soldText = sold > 0 ? Colored(GreenHex, "+" + ChartMath.Compact(sold)) : Colored(GrayHex, "$0");
+                var cashText = d.Cash >= 1 ? Colored(GoldHex, ChartMath.Compact(d.Cash)) : Colored(GrayHex, "$0");
+                _rankingLines[i].text = $"{i + 1}. {Shorten(d.Name, 16)}  {soldText} · {cashText}";
+            }
+        }
+
+        private static string Shorten(string name, int max) =>
+            string.IsNullOrEmpty(name) || name.Length <= max ? name : name.Substring(0, max - 1) + "…";
 
         private void RefreshGoal(DayRecord today)
         {

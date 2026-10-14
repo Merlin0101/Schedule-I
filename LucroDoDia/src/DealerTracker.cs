@@ -17,12 +17,30 @@ namespace LucroDoDia
     {
         private const float RefreshListSeconds = 10f;
 
-        private static readonly List<object> Dealers = new List<object>();
+        /// <summary>Dealer recrutado com nome e dinheiro a coletar (ultima leitura).</summary>
+        public class Info
+        {
+            public string Id;
+            public string Name;
+            public double Cash;
+        }
+
+        private class Entry
+        {
+            public string Id;
+            public string Name;
+            public object Component;
+        }
+
+        private static readonly List<Entry> Dealers = new List<Entry>();
+
+        /// <summary>Dealers recrutados na ultima leitura.</summary>
+        public static readonly List<Info> Current = new List<Info>();
         private static PropertyInfo _componentProp; // NPCDealer.Component (interno)
         private static float _nextRefresh;
 
-        /// <summary>Dinheiro total a coletar com os dealers e quantos estao recrutados.</summary>
-        public static (double pool, int recruited) Read(float now)
+        /// <summary>Atualiza <see cref="Current"/> com os dealers recrutados e o dinheiro de cada um.</summary>
+        public static IReadOnlyList<Info> Read(float now)
         {
             if (now >= _nextRefresh)
             {
@@ -30,27 +48,27 @@ namespace LucroDoDia
                 RefreshList();
             }
 
-            double pool = 0;
-            var recruited = 0;
+            Current.Clear();
             foreach (var dealer in Dealers)
             {
                 try
                 {
-                    if (!(Member(dealer, "IsRecruited") is bool isRecruited) || !isRecruited) continue;
-                    recruited++;
-                    if (Member(dealer, "Cash") is float cash) pool += cash;
+                    if (!(Member(dealer.Component, "IsRecruited") is bool isRecruited) || !isRecruited) continue;
+                    var cash = Member(dealer.Component, "Cash") is float c ? c : 0f;
+                    Current.Add(new Info { Id = dealer.Id, Name = dealer.Name, Cash = cash });
                 }
                 catch
                 {
                     // dealer destruido entre uma leitura e outra; some no proximo refresh
                 }
             }
-            return (pool, recruited);
+            return Current;
         }
 
         public static void Clear()
         {
             Dealers.Clear();
+            Current.Clear();
             _nextRefresh = 0;
         }
 
@@ -67,7 +85,14 @@ namespace LucroDoDia
                     var wrapper = npc?.Dealer;
                     if (wrapper == null || !wrapper.IsDealer) continue;
                     var component = _componentProp.GetValue(wrapper);
-                    if (component != null) Dealers.Add(component);
+                    if (component == null) continue;
+                    var name = npc.FullName;
+                    Dealers.Add(new Entry
+                    {
+                        Id = npc.ID,
+                        Name = string.IsNullOrWhiteSpace(name) ? npc.ID : name,
+                        Component = component,
+                    });
                 }
                 catch
                 {

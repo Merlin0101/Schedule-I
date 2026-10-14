@@ -10,6 +10,7 @@ Adds a **"Lucro"** app to your in-game phone that tracks your money for the day:
 - **Daily goal** — progress bar plus an in-game notification when you hit it.
 - **Balance** — cash and bank, shown separately.
 - **Chart** — profit for today and the previous 6 days (green = profit, red = loss).
+- **Dealer ranking** — who sold the most today and how much cash each dealer is holding for you, so you know who to visit first.
 
 History is stored inside your save file. One DLL works on both the default Steam
 build (IL2CPP) and the `alternate` branch (Mono). The app's text is in Portuguese (pt-BR).
@@ -39,7 +40,8 @@ that comes back counts as income, so the final profit is still correct.
 
 Adiciona o app **Lucro** ao celular do jogo: entradas, investimento e lucro do dia,
 vendas dos dealers ao vivo (e quanto há a coletar), lucro por hora de jogo, meta diária com notificação, saldo em mãos e no banco, e
-gráfico dos últimos 7 dias. Os dados ficam salvos no próprio save. Funciona em IL2CPP
+gráfico dos últimos 7 dias e ranking dos dealers (quem mais vendeu hoje e quanto
+cada um tem a coletar). Os dados ficam salvos no próprio save. Funciona em IL2CPP
 e Mono com a mesma DLL.
 
 Instalação: pelo r2modman/Thunderstore Mod Manager (as dependências vêm juntas) ou

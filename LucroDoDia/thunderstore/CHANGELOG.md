@@ -1,3 +1,7 @@
+## 1.3.0
+- Aba "Dealers" no app: ranking de quem mais vendeu hoje e quanto cada um tem a coletar.
+- Abas "Ultimos 7 dias" / "Dealers" no lado direito.
+
 ## 1.2.0
 - Dealers: vendas dos dealers entram nas entradas na hora em que acontecem, com a linha "dos dealers" e o total "a coletar".
 - Coletar o dinheiro de um dealer nao conta duas vezes (e so uma transferencia).

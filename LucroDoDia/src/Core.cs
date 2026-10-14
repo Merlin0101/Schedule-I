@@ -13,7 +13,7 @@ namespace LucroDoDia
     public class Core : MelonMod
     {
         public const string ModName = "LucroDoDia";
-        public const string ModVersion = "1.2.0";
+        public const string ModVersion = "1.3.0";
 
         private const float PollIntervalSeconds = 0.5f;
 
@@ -23,6 +23,7 @@ namespace LucroDoDia
         /// <summary>Ultimos saldos lidos do jogo.</summary>
         public static double Cash, Bank, DealerCash;
         public static int RecruitedDealers;
+        private static readonly System.Collections.Generic.List<DealerSample> DealerSamples = new System.Collections.Generic.List<DealerSample>();
 
         private static MelonPreferences_Entry<float> _dailyGoal;
         private static MelonPreferences_Entry<bool> _notifyGoal;
@@ -107,15 +108,21 @@ namespace LucroDoDia
             }
 
             // Dealers: venda entra na hora; recrutar/carregar dealer muda a base sem ser lucro.
-            var (pool, recruited) = DealerTracker.Read(Time.unscaledTime);
-            if (recruited != RecruitedDealers)
+            var dealers = DealerTracker.Read(Time.unscaledTime);
+            if (dealers.Count != RecruitedDealers)
             {
-                RecruitedDealers = recruited;
+                RecruitedDealers = dealers.Count;
                 Ledger.ResetBaseline();
             }
-            DealerCash = pool;
+            DealerSamples.Clear();
+            DealerCash = 0;
+            foreach (var d in dealers)
+            {
+                DealerSamples.Add(new DealerSample(d.Id, d.Cash));
+                DealerCash += d.Cash;
+            }
 
-            Ledger.Observe(Cash + Bank, day, minuteOfDay, pool);
+            Ledger.Observe(Cash + Bank, day, minuteOfDay, DealerSamples);
             if (Ledger.CheckGoal(DailyGoal) && _notifyGoal.Value)
                 GameNotifier.Send("Meta do dia batida!", $"Lucro de hoje: {ChartMath.Compact(Ledger.Today.Profit)}");
             Save?.Capture(Ledger);
